@@ -56,7 +56,7 @@ class RBM(object):
         return prob, state
 
 
-    def train(self, X, N, labels, config):
+    def train(self, X, labels, config):
 
         # Helper functions
         def _grad(update_term,d):  # compute update
@@ -76,6 +76,7 @@ class RBM(object):
         ## INITIALIZE ################################################################################################|
         log, session_path = config.startup()  #IO operations - creates config.txt and folders for saved data
 
+        N = X.shape[0]
         a, gen, q, p, lab_gen, lab_p = dict(), dict(), dict(), dict(), dict(), dict() # dummy variables for hidden states, fantasies, and probabilities
         up = {0: a, 1: q}  # dict to select states or probabilities for forward pass 
         down = {0: gen, 1: p}  # dict to select states or probs for downward pass
@@ -112,8 +113,8 @@ class RBM(object):
                     a[0] = (np.random.rand(a[0].shape[0]) <= q[0]) / 1 
 
                     #a[0] = (a[0] >= (np.add(np.zeros(a[0].size),128)))/1  # binarize
-                    z2 = 0  # placeholder for labels
-                    alt = 0 # alternating Gibbs sampling counter
+                    z2 = 0  # reset placeholder for labels
+                    alt = 0 # reset alternating Gibbs sampling counter
 
                     for layer in range(l):
 
@@ -137,7 +138,7 @@ class RBM(object):
                             lab_gen[0] = (lab_p[0] >= np.max(lab_p[0]))//1
                             z2 = np.dot(self.W[self.L-1],label_down[infer_with_probs][0])  # get negative-phase input from labels for top layer
 
-                        q[l], gen[l] = self.infer(down[infer_with_probs][l-1],self.W[l-1],self.b[l]+z2)  # bounce back up for CD learning
+                        q[l], a[l] = self.infer(down[infer_with_probs][l-1],self.W[l-1],self.b[l]+z2)  # bounce back up for CD learning
                         alt += 1
 
                     for reyal in range(l-1,0,-1):  # compute fantasies to measure reconstruction error
@@ -230,9 +231,57 @@ class RBM(object):
                 plog("cost after epoch %s: %s\n" % (k, (total_err/N)))
                 k += 1
 
-    def test(self, X, N, labels, config):
-        print("Testing not yet implemented.")
-        return False
+    def test(self, X, labels, config):
+
+        def plog(s):  # print to screen and to file if logging enabled
+            print(s)
+            if logmode:
+                g.write(s+"\n")
+
+        log, session_path = config.startup()  #IO operations - creates config.txt and folders for saved data
+
+        N = X.shape[0]
+        a, gen, q, p, lab_p = dict(), dict(), dict(), dict(), dict() # dummy variables for hidden states, fantasies, and probabilities
+        test_results = np.zeros(N,dtype='int')  # stores predictions
+
+        logmode = False
+
+        if 'l' in config.save:
+            logmode = True
+            g = open(session_path + "/test_log.txt","w")  # File to log training progress
+
+        i = 0
+        while i < N:
+            lab_hist = np.zeros(self.num_labels) # init variable to store frequency of label units
+
+            #Feedforward
+            a[0] = X[i].astype('int')  # fetch image
+            q[0] = expit(a[0]-128)
+            a[0] = (np.random.rand(a[0].shape[0]) <= q[0]) / 1 
+
+            alt = 0 # reset alternating Gibbs sampling counter
+
+            # Feed forward to obtain hidden states for hidden layer L-1
+            for layer in range(self.L-1):
+                q[layer+1], a[layer+1] = self.infer(a[layer], self.W[layer],self.b[layer+1]) # compute layerth hidden layer probs and activation
+
+            while alt < self.CD:  # alternating Gibbs sampling for n=CD steps, holding inferred hidden units for images fixed
+                lab_p[0], _ = self.infer(a[self.L-1],np.transpose(self.W[self.L-1]),self.b[self.L])
+                lab_hist += (lab_p[0] >= np.max(lab_p[0]))//1
+                z = np.dot(self.W[self.L-1],lab_p[0]) # Just use probabilities, since we're not learning here
+
+                if alt < (self.CD-1):
+                    q[self.L-1], a[self.L-1] = self.infer(q[self.L-2],self.W[self.L-2],self.b[self.L-1]+z)  # bounce back up (unless on last iteration of Gibbs sampling)
+
+                alt += 1
+
+            test_results[i] = np.argmax(lab_hist)  # Determine winner (if tie, smallest index is returned--fix this somehow)
+            plog("[Predicted/true class] for example %s: %s/%s" % (i, test_results[i], labels[i]))
+
+            i += 1
+
+        test_score = np.sum([a == p for a,p in zip(labels,test_results)])/N
+        plog('\nClassification accuracy: %s' % test_score)
 
 
     def sample(self, config):

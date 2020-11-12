@@ -8,14 +8,15 @@ parser = argparse.ArgumentParser(description='Train, validate/test, and sample f
 
 # Paths for saving, loading, and data retrieval
 parser.add_argument('--dataset', type=str, metavar='STR', default='MNIST', help='string specifying dataset (for now, just load MNIST)')
-parser.add_argument('--save_path', type=str, metavar='STR', default='save', help='directory to save weights at checkpoints')
+parser.add_argument('--save_path', type=str, metavar='STR', default='save', help='directory to save data (data differs depending on mode and other parameters)')
 parser.add_argument('--save_freq', type=int, metavar='INT', default=10000, help='number of iterations between checkpoints')
 parser.add_argument('--save', nargs='*', metavar='STR',type=str, default=['c','p','f','s'], help="""list of strings specifying what to save:
-                                                                         'l': training log
+                                                                         'l': training or test log
                                                                          'c': curves (error & other plots)
                                                                          'p': parameters
                                                                          'f': filter visualizations
-                                                                         's': samples from the model""")
+                                                                         's': samples from the model
+                                                                         Note: values other than 'l' ignored for tests; this argument is ignored in sample mode.""")
 parser.add_argument('--init_from', type=str, metavar='STR', default=None, help="""use model parameters stored at specified path
                                                                    --ensure that network architectures match
                                                                    --loads most recently saved file at path
@@ -66,9 +67,9 @@ if __name__ == '__main__':
 
     if args.mode in ['train','test']:
         if (args.dataset == 'MNIST'):
-            N, X, labels = load_mnist(args.mode)
+            X, labels = load_mnist(args.mode)
 
-        f(X, N, labels, config)
+        f(X, labels, config)
     else:
         f(config)
 
