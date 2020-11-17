@@ -89,7 +89,6 @@ So far, only the MNIST handwritten digit database is natively supported.
 # Goals
 
 The immediate goals of the project are to:
-
 (a) Train an RBM on MNIST with discriminative performance >95%;
 (b) Train a qualitatively decent generative model of MNIST digits;
 (c) Once this benchmark is reached, implement the Variational Autoencoder (VAE).
