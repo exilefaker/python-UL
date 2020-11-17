@@ -15,6 +15,56 @@ Such discriminative tests as are included in this package can be run using joint
 
 # Usage
 
-`python RBM_cmdline.py --parameter ARG`
+```
+usage: RBM_cmdline.py [-h] [--dataset STR] [--save_path STR] [--save_freq INT]
+                      [--save [STR [STR ...]]] [--init_from STR] [--train_from INT] [--model MODEL]
+                      [--layer_sizes INT [INT ...]] [--labels INT] [--epochs INT] [--alpha FLOAT]
+                      [--L2_param FLOAT] [--momentum INT] [--anneal BOOL] [--use_probs STR] [--CD INT]
+                      [--mode STR] [--num_samples INT] [--sample_class [INT [INT ...]]]
+                      [--init_mode STR]
+
+Train, validate/test, and sample from neural networks; save and load trained models and output
+detailed training logs.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --dataset STR         string specifying dataset (for now, just load MNIST) (default: MNIST)
+  --save_path STR       directory to save data (data differs depending on mode and other parameters)
+                        (default: save)
+  --save_freq INT       number of iterations between checkpoints (default: 10000)
+  --save [STR [STR ...]]
+                        list of strings specifying what to save: 'l': training or test log 'c': curves
+                        (error & other plots) 'p': parameters 'f': filter visualizations 's': samples
+                        from the model Note: values other than 'l' ignored for tests; this argument is
+                        ignored in sample mode. (default: ['c', 'p', 'f', 's'])
+  --init_from STR       use model parameters stored at specified path -ensure that network
+                        architectures match -loads most recently saved file at path -loads saved
+                        parameters for all layers, if they exist -required for 'test' and 'sample'
+                        modes (default: None)
+  --train_from INT      specify which layer to begin training on (default: 1)
+  --model MODEL         currently only RBM (default: RBM)
+  --layer_sizes INT [INT ...]
+                        specify number of layers and size of each, beginning with input layer
+                        (default: [784, 500, 500, 2000])
+  --labels INT          number of categories if labeled data; entering "0" bypasses labels label layer
+                        attaches to final hidden layer (default: 10)
+  --epochs INT          number of epochs (sweeps through data) (default: 20)
+  --alpha FLOAT         learning rate (default: 0.05)
+  --L2_param FLOAT      L2 regularization parameter (default: 0.0001)
+  --momentum INT        Momentum parameter for SGD with momentum (default: 0)
+  --anneal BOOL         Boolean to toggle (default: True)
+  --use_probs STR       Use probabilities rather than states to 'infer' (negative phase only),
+                        'learn', 'both', or 'none' (default: both)
+  --CD INT              Number of steps of Gibbs sampling to use for Contrastive Divergence learning
+                        (default: 1)
+  --mode STR            train, test, or sample (default: train)
+  --num_samples INT     For 'sample' mode: specify number of samples to generate (default: 10)
+  --sample_class [INT [INT ...]]
+                        For 'sample' mode: specify which classes to generate from -if one value is
+                        provided, all samples will be from the specified class -if more than one,
+                        class for each sample is chosen from a flat distribution (default: None)
+  --init_mode STR       specify data to use to initialize Gibbs sampling random: random vector in
+                        [0,1] MNIST_test: random MNIST test image (default: random)
+```
 
 Argument/parameter descriptions forthcoming.
