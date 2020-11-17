@@ -72,13 +72,13 @@ optional arguments:
 
 `train`: Train a neural net on the specified dataset.
 `test`: If applicable, test network on a discriminative task (using specified test set).
-'sample': Draw a sample from the distribution of a generative model.
+`sample`: Draw a sample from the distribution of a generative model.
 
 # Models
 
-For now, only one base model, the restricted Boltzmann machine (RBM), is implemented. RBMs are Markov random fields (undirected graphical models) partitioned into "visible" an "hidden" units, with no connections within these partitions. For sure with energy-based unsupervised learning algorithms such as Contrastive Divergence. See: https://www.cs.toronto.edu/~hinton/absps/guideTR.pdf
+For now, only one base model, the restricted Boltzmann machine (RBM), is implemented. RBMs are Markov random fields (undirected graphical models) partitioned into "visible" an "hidden" units, with no connections within these partitions. For use with energy-based unsupervised learning algorithms such as Contrastive Divergence. See: https://www.cs.toronto.edu/~hinton/absps/guideTR.pdf
 
-Stacked RBMs can be used to create a Deep Belief Network, which is a directed top-down generative model, in which the feedforward connections are used for approximate inference from data. Alternating Gibbs sampling at the top two layers can be used to run a Markov chain long enough to approach the network's equilibrium distribution, for testing or sampling purposes.
+Stacked RBMs can be used to create a Deep Belief Network (DBN), which is a directed top-down generative model, in which the feedforward connections are used for approximate inference from data. Alternating Gibbs sampling at the top two layers can be used to run a Markov chain long enough to approach the network's equilibrium distribution, for testing or sampling purposes.
 
 The tools here support RBMs/DBNs with two input "channels": images (or more generally data) and labels. These model types can be used to build joint density models of data and their labels.
 
@@ -89,6 +89,7 @@ So far, only the MNIST handwritten digit database is natively supported.
 # Goals
 
 The immediate goals of the project are to:
+
 (a) Train an RBM on MNIST with discriminative performance >95%;
 (b) Train a qualitatively decent generative model of MNIST digits;
 (c) Once this benchmark is reached, implement the Variational Autoencoder (VAE).
