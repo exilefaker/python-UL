@@ -11,13 +11,18 @@ def load_mnist(dataset='train'):
         fn = 'datasets/MNIST/t10k-images-idx3-ubyte'
         fn2 = 'datasets/MNIST/t10k-labels-idx1-ubyte'
 
+    print("\nLoading MNIST dataset...")
     #parse the matrix file into temporary files for each header item
     with open(fn,'rb') as f:
+        print("Loading images...")
         magic_nr, N, rows, cols = struct.unpack(">IIII", f.read(16))
+        print("Magic number: %s; N: %s; rows: %s; cols: %s" % (magic_nr, N, rows, cols))
         img = array("B", f.read())
 
     with open(fn2, 'rb') as g:
+        print("Loading labels...")
         magic_nr, size = struct.unpack(">II", g.read(8))
+        print("Magic number: %s; N: %s\n" % (magic_nr, size))
         lbl = array("b", g.read())
 
     ind = [k for k in range(N)]
@@ -29,4 +34,4 @@ def load_mnist(dataset='train'):
         images[i] = np.array(img[ind[i]*rows*cols:(ind[i]+1)*rows*cols])
         labels[i] = lbl[ind[i]]
 
-    return N, images, labels
+    return images, labels

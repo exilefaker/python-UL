@@ -8,19 +8,20 @@ parser = argparse.ArgumentParser(description='Train, validate/test, and sample f
 
 # Paths for saving, loading, and data retrieval
 parser.add_argument('--dataset', type=str, metavar='STR', default='MNIST', help='string specifying dataset (for now, just load MNIST)')
-parser.add_argument('--save_path', type=str, metavar='STR', default='save', help='directory to save weights at checkpoints')
+parser.add_argument('--save_path', type=str, metavar='STR', default='save', help='directory to save data (data differs depending on mode and other parameters)')
 parser.add_argument('--save_freq', type=int, metavar='INT', default=10000, help='number of iterations between checkpoints')
 parser.add_argument('--save', nargs='*', metavar='STR',type=str, default=['c','p','f','s'], help="""list of strings specifying what to save:
-                                                                         'l': training log
+                                                                         'l': training or test log
                                                                          'c': curves (error & other plots)
                                                                          'p': parameters
                                                                          'f': filter visualizations
-                                                                         's': samples from the model""")
+                                                                         's': samples from the model
+                                                                         Note: values other than 'l' ignored for tests; this argument is ignored in sample mode.""")
 parser.add_argument('--init_from', type=str, metavar='STR', default=None, help="""use model parameters stored at specified path
-                                                                   --ensure that network architectures match
-                                                                   --loads most recently saved file at path
-                                                                   --loads saved parameters for all layers, if they exist
-                                                                   --required for 'test' and 'sample' modes""")
+                                                                                  -ensure that network architectures match
+                                                                                  -loads most recently saved file at path
+                                                                                  -loads saved parameters for all layers, if they exist
+                                                                                  -required for 'test' and 'sample' modes""")
 parser.add_argument('--train_from', type=int, metavar='INT', default=1, help='specify which layer to begin training on')
 # Hyperparameters
 parser.add_argument('--model', type=str, metavar='MODEL', default='RBM', help='currently only RBM')
@@ -31,13 +32,20 @@ parser.add_argument('--epochs', type=int, metavar='INT', default=20, help='numbe
 parser.add_argument('--alpha', type=float, metavar='FLOAT', default=0.05, help='learning rate')
 parser.add_argument('--L2_param', type=float, metavar='FLOAT', default=1e-4, help='L2 regularization parameter')
 parser.add_argument('--momentum', type=float, metavar='INT', default=0, help='Momentum parameter for SGD with momentum')
+parser.add_argument('--anneal', type=bool, metavar='BOOL', default=True, help='Boolean to toggle ')
 
 parser.add_argument('--use_probs', type=str, metavar='STR', default='both', help="Use probabilities rather than states to 'infer' (negative phase only), 'learn', 'both', or 'none'")
 parser.add_argument('--CD', type = int, metavar='INT', default=1, help="Number of steps of Gibbs sampling to use for Contrastive Divergence learning")
 
 # Mode
 parser.add_argument('--mode', type=str, metavar='STR', default='train', help='train, test, or sample')
-parser.add_argument('--num_samples', type=int, metavar='INT', default=10, help="specify number of samples to generate (for use with 'sample' mode)")
+parser.add_argument('--num_samples', type=int, metavar='INT', default=10, help="For 'sample' mode: specify number of samples to generate")
+parser.add_argument('--sample_class', nargs='*',type=int, metavar='INT', default=None, help="""For 'sample' mode: specify which classes to generate from
+                                                                                                      -if one value is provided, all samples will be from the specified class
+                                                                                                      -if more than one, class for each sample is chosen from a flat distribution""")
+parser.add_argument('--init_mode', type=str, metavar='STR', default='random', help="""specify data to use to initialize Gibbs sampling
+                                                                                     random: random vector in [0,1] 
+                                                                                     MNIST_test: random MNIST test image""")
 
 args = parser.parse_args()
 
@@ -60,15 +68,18 @@ if __name__ == '__main__':
     
     model = {'RBM': RBM}
     network = model[args.model](args.layer_sizes, args.labels, args.alpha, args.L2_param, args.momentum, args.use_probs, args.CD)
-    config = Session(network, args.model, args.mode, args.dataset, args.save, args.save_path, args.save_freq, args.init_from, args.train_from, args.epochs, args.num_samples)
+    config = Session(network, args.model, args.mode, args.dataset, args.save, args.save_path, args.save_freq, args.init_from, args.train_from, args.epochs, args.num_samples, args.sample_class, args.init_mode)
     mode = {'train': network.train, 'test': network.test, 'sample': network.sample}
     f = mode[args.mode]
 
     if args.mode in ['train','test']:
         if (args.dataset == 'MNIST'):
-            N, X, labels = load_mnist(args.mode)
-
-        f(X, N, labels, config)
+            X, labels = load_mnist(args.mode)
+        f(X, labels, config)
     else:
-        f(config)
+        if args.init_mode=='MNIST_test':
+            X, _ = load_mnist('test')
+        else:
+            X = None
+        f(config, X=X)
 

@@ -56,7 +56,7 @@ class RBM(object):
         return prob, state
 
 
-    def train(self, X, N, labels, config):
+    def train(self, X, labels, config):
 
         # Helper functions
         def _grad(update_term,d):  # compute update
@@ -76,6 +76,7 @@ class RBM(object):
         ## INITIALIZE ################################################################################################|
         log, session_path = config.startup()  #IO operations - creates config.txt and folders for saved data
 
+        N = X.shape[0]
         a, gen, q, p, lab_gen, lab_p = dict(), dict(), dict(), dict(), dict(), dict() # dummy variables for hidden states, fantasies, and probabilities
         up = {0: a, 1: q}  # dict to select states or probabilities for forward pass 
         down = {0: gen, 1: p}  # dict to select states or probs for downward pass
@@ -112,8 +113,8 @@ class RBM(object):
                     a[0] = (np.random.rand(a[0].shape[0]) <= q[0]) / 1 
 
                     #a[0] = (a[0] >= (np.add(np.zeros(a[0].size),128)))/1  # binarize
-                    z2 = 0  # placeholder for labels
-                    alt = 0 # alternating Gibbs sampling counter
+                    z2 = 0  # reset placeholder for labels
+                    alt = 0 # reset alternating Gibbs sampling counter
 
                     for layer in range(l):
 
@@ -122,7 +123,7 @@ class RBM(object):
                             labs[labels[i]] = 1  # fetch label and one-hot encode
                             z2 = np.dot(self.W[self.L-1],labs)
 
-                        q[layer+1], a[layer+1] = self.infer(a[layer], self.W[layer],(self.b[layer+1]+z2)) # compute layerth hidden layer probs and activation
+                        q[layer+1], a[layer+1] = self.infer(q[layer], self.W[layer],(self.b[layer+1]+z2)) # compute layerth hidden layer probs and activation
 
                     ## Negative phase ##------------------------------------------------------------------------------|
                     #gen[l] = a[l]  # begin CD-n loop with data-driven hidden states
@@ -130,14 +131,14 @@ class RBM(object):
 
                     while alt < self.CD:  # alternating Gibbs sampling for n=CD steps
                         z2 = 0  # reset label input
-                        p[l-1], gen[l-1] = self.infer(up[(alt!=0) and (infer_with_probs==1)][l],np.transpose(self.W[l-1]),self.b[l-1])  # generate reconstruction on layer l-1
+                        p[l-1], gen[l-1] = self.infer(up[alt != 0 and infer_with_probs==1][l],np.transpose(self.W[l-1]),self.b[l-1])  # generate reconstruction on layer l-1
 
                         if (l == self.L-1 and self.num_labels):  # label units
                             lab_p[0], _ = self.infer(a[self.L-1],np.transpose(self.W[self.L-1]),self.b[self.L])  # generate label
                             lab_gen[0] = (lab_p[0] >= np.max(lab_p[0]))//1
                             z2 = np.dot(self.W[self.L-1],label_down[infer_with_probs][0])  # get negative-phase input from labels for top layer
 
-                        q[l], gen[l] = self.infer(down[infer_with_probs][l-1],self.W[l-1],self.b[l]+z2)  # bounce back up for CD learning
+                        q[l], a[l] = self.infer(down[infer_with_probs][l-1],self.W[l-1],self.b[l]+z2)  # bounce back up for CD learning
                         alt += 1
 
                     for reyal in range(l-1,0,-1):  # compute fantasies to measure reconstruction error
@@ -176,11 +177,11 @@ class RBM(object):
                             x_img = np.array((1-p[0])*255,dtype='uint8')
                             img = Image.fromarray(np.reshape(x_img,(28,28)),'L')
                             F_text = '(%s)' % lab_gen[0].argmax() if (self.num_labels > 0 and l == self.L-1) else ''
-                            img.save(config.save_path+'/session'+str(log)+'/samples/layer%s/l%s-epoch%s-image%s-F%s.png' % (l,l,k,i,F_text))
+                            img.save(session_path + '/samples/layer%s/l%s-epoch%s-image%s-F%s.png' % (l,l,k,i,F_text))
 
                             img = Image.fromarray(np.reshape(255-X[i],(28,28)),'L')
                             D_text = '(%s)' % labels[i] if (self.num_labels > 0 and l == self.L-1) else ''
-                            img.save(config.save_path+'/session'+str(log)+'/samples/layer%s/l%s-epoch%s-image%s-D%s.png' % (l,l,k,i,D_text))
+                            img.save(session_path + '/samples/layer%s/l%s-epoch%s-image%s-D%s.png' % (l,l,k,i,D_text))
 
                         #save parameters - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - |
                         if 'p' in config.save:
@@ -189,7 +190,7 @@ class RBM(object):
                             if (l == 1):
                                 u = struct.pack('f'*(self.layer_sizes[l-1]), *self.b[l-1])
                             t = struct.pack('f'*self.layer_sizes[l], *self.b[l])
-                            current_path = config.save_path+'/session'+str(log)+'/parameters/layer%s/l%s-epoch%s-iter%s' % (l,l,k,i)
+                            current_path = session_path + '/parameters/layer%s/l%s-epoch%s-iter%s' % (l,l,k,i)
                             with open(current_path,'wb') as f:
                                 f.write(s)
                                 if (l == 1):
@@ -210,14 +211,51 @@ class RBM(object):
                                 W_img = np.matmul(softmax(self.W[layer],axis=1),W_img)
                             for row in range(self.layer_sizes[l]):
                                 W_img = W_img.astype('uint8')
-                                Image.fromarray(np.reshape(W_img[row,:],(28,28)),"L").save(config.save_path+'/session'+str(log)+'/filters/layer%s/filter%s-epoch%s-iter%s.png' % (l,row,k,i))
+                                Image.fromarray(np.reshape(W_img[row,:],(28,28)),"L").save(session_path + '/filters/layer%s/filter%s-epoch%s-iter%s.png' % (l,row,k,i))
                         #save plots - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - |
                         if i > 0 and 'c' in config.save:
                             plt.plot([x*500 for x in range((i+(k*N))//500)],errs, color="#6c3376", linewidth=3)
                             plt.xlabel('Iterations')
                             plt.ylabel('Reconstruction error')
-                            plt.savefig(session_path + '/curves/layer%s/l%s-cost-iter%s.png' % (l,l,i+(k*N)))
+                            plt.savefig(session_path + '/curves/layer%s/cost-l%s-iter%s.png' % (l,l,i+(k*N)))
                             plt.clf()
+
+                            plt.hist(np.reshape(self.W[l-1],self.layer_sizes[l]*self.layer_sizes[l-1]),bins=50,color="#FF0000")
+                            plt.xlabel('Values of parameters in W%s' % (l-1))
+                            plt.ylabel('# of parameters')
+                            plt.savefig(session_path + '/curves/layer%s/hist_W%s-iter%s.png' % (l,l-1,i+(k*N)))
+                            plt.clf()
+
+                            plt.hist(np.reshape(self.d_W[l-1],self.layer_sizes[l]*self.layer_sizes[l-1]),bins=200,color="#FF0000")
+                            plt.xlabel('Values of gradients in d_W%s' % (l-1))
+                            plt.ylabel('# of gradients')
+                            plt.savefig(session_path + '/curves/layer%s/hist_d_W%s-iter%s.png' % (l,l-1,i+(k*N)))
+                            plt.clf()
+
+                            plt.hist(self.b[l],bins=30,color="#00AA00")
+                            plt.xlabel('Values of parameters in b%s' % l)
+                            plt.ylabel('# of parameters')
+                            plt.savefig(session_path + '/curves/layer%s/hist_b%s-iter%s.png' % (l,l,i+(k*N)))
+                            plt.clf()
+
+                            plt.hist(self.d_b[l],bins=100,color="#00AA00")
+                            plt.xlabel('Values of gradients in d_b%s' % l)
+                            plt.ylabel('# of gradients')
+                            plt.savefig(session_path + '/curves/layer%s/hist_d_b%s-iter%s.png' % (l,l,i+(k*N)))
+                            plt.clf()
+
+                            if (l == 1):
+                                plt.hist(self.b[l-1],bins=30,color="#AA0000")
+                                plt.savefig(session_path + '/curves/layer%s/hist_b%s-iter%s.png' % (l,l-1,i+(k*N)))
+                                plt.xlabel('Values of parameters in b%s' % (l-1))
+                                plt.ylabel('# of parameters')
+                                plt.clf()
+
+                                plt.hist(self.d_b[l-1],bins=100,color="#AA0000")
+                                plt.savefig(session_path + '/curves/layer%s/hist_d_b%s-iter%s.png' % (l,l-1,i+(k*N)))
+                                plt.xlabel('Values of gradients in d_b%s' % (l-1))
+                                plt.ylabel('# of gradients')
+                                plt.clf()
 
                     # end iteration * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * |
                     i += 1
@@ -230,14 +268,125 @@ class RBM(object):
                 plog("cost after epoch %s: %s\n" % (k, (total_err/N)))
                 k += 1
 
-    def test(self, X, N, labels, config):
-        print("Testing not yet implemented.")
-        return False
+    def test(self, X, labels, config):
+
+        def plog(s):  # print to screen and to file if logging enabled
+            print(s)
+            if logmode:
+                g.write(s+"\n")
+
+        _, session_path = config.startup()  #IO operations - creates config.txt and folders for saved data
+
+        N = X.shape[0]
+        a, gen, q, p, lab_p = dict(), dict(), dict(), dict(), dict() # dummy variables for hidden states, fantasies, and probabilities
+        test_results = np.zeros(N,dtype='int')  # stores predictions
+
+        logmode = False
+
+        if 'l' in config.save:
+            logmode = True
+            g = open(session_path + "/test_log.txt","w")  # File to log training progress
+
+        i = 0
+        while i < N:
+            lab_hist = np.zeros(self.num_labels) # init variable to store frequency of label units
+
+            #Input test case
+            a[0] = X[i].astype('int')  # fetch image
+            q[0] = expit(a[0]-128)
+            a[0] = (np.random.rand(a[0].shape[0]) <= q[0]) / 1 
+
+            alt = 0 # reset alternating Gibbs sampling counter
+
+            # Feed forward to obtain hidden states for hidden layer L-1
+            for layer in range(self.L-1):
+                q[layer+1], a[layer+1] = self.infer(q[layer], self.W[layer],self.b[layer+1]) # compute layerth hidden layer probs and activation
+
+            while alt < self.CD:  # alternating Gibbs sampling for n=CD steps, holding inferred hidden units for images fixed
+                lab_p[0], _ = self.infer(q[self.L-1],np.transpose(self.W[self.L-1]),self.b[self.L])
+                lab_hist += (lab_p[0] >= np.max(lab_p[0]))//1
+                z = np.dot(self.W[self.L-1],lab_p[0]) # Just use probabilities, since we're not learning here
+
+                if alt < (self.CD-1):
+                    q[self.L-1], a[self.L-1] = self.infer(q[self.L-2],self.W[self.L-2],self.b[self.L-1]+z)  # bounce back up (unless on last iteration of Gibbs sampling)
+
+                alt += 1
+
+            test_results[i] = np.argmax(lab_hist)  # Determine winner (if tie, smallest index is returned--fix this somehow)
+            plog("Predicted/true class for example %s: %s/%s" % (i, test_results[i], labels[i]))
+
+            i += 1
+
+        test_score = np.sum([a == p for a,p in zip(labels,test_results)])/N
+        plog('\nClassification accuracy: %s' % test_score)
 
 
-    def sample(self, config):
-        print("Sampling not yet implemented.")
-        return False
+    def sample(self, config, init_mode='random', X=None):
+
+        _, session_path = config.startup()  #IO operations - creates config.txt and folders for saved data
+
+        a, gen, q, p, lab_gen, lab_p = dict(), dict(), dict(), dict(), dict(), dict() # dummy variables for hidden states, fantasies, and probabilities
+        if config.sample_class:
+            num_classes = len(config.sample_class)
+
+        i = 0
+        while i < config.num_samples:
+
+            if config.init_mode=='random':
+                q[0] = np.random.rand(self.layer_sizes[0])
+
+            elif config.init_mode=='MNIST_test':
+                ind = np.random.randint(X.shape[0])
+                a[0] = X[ind].astype('int')  # fetch image
+                q[0] = expit(a[0]-128)
+                x_img = np.array((1-q[0])*255,dtype='uint8')
+                img = Image.fromarray(np.reshape(x_img,(28,28)),'L')
+                img.save(session_path + '/seed%s.png' % i)
+
+            alt = 0 # reset alternating Gibbs sampling counter
+            #p[self.L-2] = q[self.L-2] = np.random.rand(self.b[self.L-2].shape)
+
+            # Feed forward to obtain hidden states for hidden layer L-1
+            for layer in range(self.L-2):
+                q[layer+1], a[layer+1] = self.infer(q[layer], self.W[layer],self.b[layer+1]) # compute layerth hidden layer probs and activation
+
+            #gen[self.L-2] = (np.random.rand(self.b[self.L-2].shape[0]) <= 0.5 // 1)  # sample state of penultimate hidden layer using biases
+            lab_p[0] = np.zeros(self.num_labels)
+
+            if config.sample_class:  # fix label units, if applicable
+                sampled_class = np.random.randint(num_classes)
+                lab_p[0][config.sample_class[sampled_class]] = 1
+            else:
+                #lab_p[0] = expit(self.b[self.L])
+                #lab_gen[0] = (np.random.rand(self.b[self.L].shape[0]) <= lab_p[0] // 1)
+                sampled_class = np.random.randint(self.num_labels)
+                lab_p[0][sampled_class] = 1
+
+            lab_gen[0] = lab_p[0]
+
+            z = np.dot(self.W[self.L-1],lab_p[0])
+
+            while alt < self.CD:  # alternating Gibbs sampling for n=CD steps -- just use probabilities, since we're not learning here
+                q[self.L-1], a[self.L-1] = self.infer(q[self.L-2],self.W[self.L-2],self.b[self.L-1]+z)  # sample state of top layer
+                p[self.L-2], gen[self.L-2] = self.infer(q[self.L-1],np.transpose(self.W[self.L-2]),self.b[self.L-2])  # generate reconstruction on penultimate HL
+                if not config.sample_class:
+                    lab_p[0], _ = self.infer(a[self.L-1],np.transpose(self.W[self.L-1]),self.b[self.L])  # generate label, if labels not clamped
+                    lab_gen[0] = (lab_p[0] >= np.max(lab_p[0]))//1
+                z = np.dot(self.W[self.L-1],lab_gen[0])
+
+                alt += 1
+
+            for reyal in range(self.L-2,0,-1):  # compute sample (fantasy)
+                p[reyal-1], gen[reyal-1] = self.infer(p[reyal],np.transpose(self.W[reyal-1]),self.b[reyal-1])
+
+            print("Saving sample %s..." % i)  # Save sample, obviously
+            x_img = np.array((1-p[0])*255,dtype='uint8')
+            img = Image.fromarray(np.reshape(x_img,(28,28)),'L')
+            img.save(session_path + '/sample%s(%s).png' % (i,np.argmax(lab_gen[0])))
+
+            i += 1
+
+
 
 
 
